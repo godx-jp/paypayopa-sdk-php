@@ -13,8 +13,10 @@
 [![BCH compliance](https://bettercodehub.com/edge/badge/paypay/paypayopa-sdk-php?branch=master)](https://bettercodehub.com/)
 
 PHP Class for interacting with the Paypay API
-This is the quickest way to integrate PayPay payment services, primarily meant for merchants who wish to perform interactions with the Paypay API programatically.
+This is the quickest way to integrate PayPay payment services, primarily meant for merchants who wish to perform interactions with the Paypay API programmatically.
 With PayPay's OPA SDK, you can build a custom payment checkout process to suit your unique business needs and branding guidelines.
+
+> **Note:** This SDK is provided to assist merchants in integrating with our APIs. While it remains available for use, ongoing maintenance is limited and updates may not be released regularly. Most new features and enhancements are introduced directly at the API level, and we recommend referring to the latest API documentation for the most up-to-date capabilities.
 
 ## Integrating with PayPay's Open Payment API (OPA)
 
@@ -104,7 +106,7 @@ $OrderItems = [];
 $OrderItems[] = (new OrderItem())
     ->setName('Cake')
     ->setQuantity(1)
-    ->setUnitPrice('amount' => 20, 'currency' => 'JPY']);
+    ->setUnitPrice(['amount' => 20, 'currency' => 'JPY']);
 $CQCPayload->setOrderItems($OrderItems);
 
 // Save Cart totals
@@ -197,7 +199,7 @@ $authorization = $client->user->decodeUserAuth($token);
 */
 $userAuthorizationId = false;
 if ($authorization['result']==='succeeded' && $authorization['nonce']===$fetchedNonce){
-    $userAuthorizationId = $authoriresponseTokenzation['userAuthorizationId'] 
+    $userAuthorizationId = $authorization['userAuthorizationId']; 
 }
 ```
 
@@ -221,10 +223,10 @@ $amount = [
 $CAPayload->setAmount($amount);
 
 // Set a unique value to identify this capture.
-$CAPayload->setMerchantCaptureId("MERCHANT_CAPTURE_ID")
+$CAPayload->setMerchantCaptureId("MERCHANT_CAPTURE_ID");
 
 $CAPayload->setRequestedAt();
-$CAPayload->setOrderDescription("ORDER_DESCRIPTION")
+$CAPayload->setOrderDescription("ORDER_DESCRIPTION");
 $response = $client->payment->capturePaymentAuth($CAPayload);
 
 $data = $response['data'];
@@ -240,7 +242,7 @@ $data = $response['data'];
 .....initialize SDK
 */
 
-$response =  $client->payments->getPaymentDetails('MERCHANT_PAYMENT_ID');
+$response =  $client->payment->getPaymentDetails('MERCHANT_PAYMENT_ID');
 $data = $response['data'];
 ```
 ### Revert payment
@@ -257,7 +259,7 @@ $RAPayload->setPaymentId("MERCHANT_PAYMENT_ID");
 $RAPayload->setRequestedAt();
 $RAPayload->setReason("REASON_FOR_REFUND");
      
- $response = $client->payment->revertAuth($RAPayload)
+ $response = $client->payment->revertAuth($RAPayload);
 ```
 
     For a list of params refer to the API guide :
