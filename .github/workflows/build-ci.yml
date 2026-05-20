@@ -22,7 +22,7 @@ jobs:
         env:
           CC_TEST_REPORTER_ID: fa3e49a5bc2592fd1397209f68833c40c47adb8de7940e460ffd07a852922660
         run: |
-            curl -L https://codeclimate.com/downloads/test-reporter/test-reporter-latest-linux-amd64 > ./cc-test-reporter
+            curl -L https://github.com/codeclimate/test-reporter/releases/latest/download/cc-test-reporter-linux-amd64 > ./cc-test-reporter
             chmod +x ./cc-test-reporter
             ./cc-test-reporter before-build
 
