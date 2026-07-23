@@ -28,10 +28,12 @@ No PayPay API behaviour changes — JWT usage in `User::decodeUserAuth()` alread
       "url": "https://github.com/godx-jp/paypayopa-sdk-php.git"
     }
   ],
-  "require": {
-    "godx-jp/paypayopa-php-sdk": "^2.0"
+    "require": {
+    "godx-jp/paypayopa-php-sdk": "^2.1"
   }
-}
+```
+
+Release tag: `2.1.0` (first godx-jp release with php-jwt ^7 compatibility).
 ```
 
 Track upstream releases periodically; merge security fixes from PayPay when published.
