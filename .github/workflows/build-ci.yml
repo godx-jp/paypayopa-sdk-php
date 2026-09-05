@@ -1,22 +1,99 @@
 name: Paypay PHP SDK CI
-on: [push,pull_request]
+# `workflow_dispatch` thêm 05/09/2026: fork này chưa từng có lượt chạy nào
+# (workflow bị tắt mặc định trên fork, phải bật tay) — có nút chạy tay thì
+# không phải đẩy commit rỗng chỉ để kích CI.
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # RUNNER — `[self-hosted, swarm-pool]`, không phải `ubuntu-latest`. Runner của
+    # GitHub tính tiền; từ 09/2026 cả org chạy trên đàn `swarm-pool` (image
+    # `tempo-runner-php:noble`: PHP 8.4 + Composer, KHÔNG có java, KHÔNG có make,
+    # có docker CLI dùng chung daemon của host). Gọi đích danh nhãn `swarm-pool`:
+    # `self-hosted` một mình là nhãn tự động, không phân biệt được máy nào.
+    runs-on: [self-hosted, swarm-pool]
     strategy:
       matrix:
-        php-version: [7.2, 7.3, 7.4]
+        # Fork godx-jp đặt `"php": "^8.1"` + phpunit ^10 trong composer.json
+        # (commit 7f948ff) nhưng để nguyên ma trận 7.2/7.3/7.4 của upstream —
+        # ba bản ấy không chạy nổi phpunit ^10 (cần 8.1+), nên ma trận cũ chỉ
+        # có thể đỏ. Đổi sang đúng dải composer.json khai: 8.1 → 8.4.
+        #
+        # 8.4 chạy thẳng trên image runner; 8.1/8.2/8.3 chạy trong `php:<ver>-cli`
+        # qua docker (xem bước "Run Tests").
+        php-version: ['8.1', '8.2', '8.3', '8.4']
+    env:
+      PHP: ${{ matrix.php-version }}
     steps:
       - uses: actions/checkout@v2
 
+      # `$HOME` trên runner dùng chung không thuộc về CI. Trỏ COMPOSER_HOME vào
+      # thư mục tạm của lượt chạy, và mồi kho tải đã bake sẵn trong image —
+      # container phù du nên `vendor/` phải dựng lại mỗi job.
+      - name: Composer không đọc HOME dùng chung
+        run: |
+          echo "COMPOSER_HOME=$RUNNER_TEMP/composer-home" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/composer-cache"
+          [ -d /opt/composer-cache ] && cp -a /opt/composer-cache/. "$RUNNER_TEMP/composer-cache/" 2>/dev/null || true
+          echo "COMPOSER_CACHE_DIR=$RUNNER_TEMP/composer-cache" >> "$GITHUB_ENV"
+
+      # Cài bằng Composer của image (PHP 8.4) cho MỌI bản trong ma trận, kể cả
+      # 8.1–8.3 rồi mới đem `vendor/` vào container php:<ver>-cli ở bước test.
+      # Kết quả không đổi theo PHP thật vì composer.json ghim
+      # `config.platform.php = 8.3.0`: Composer giải phụ thuộc theo con số ấy,
+      # không theo bản PHP đang chạy. Không cài trong container vì image
+      # `php:<ver>-cli` không có composer, không có unzip/git/ext-zip — mỗi job
+      # sẽ phải `apt-get` lại từ đầu.
       - name: Run composer
         run: composer install
 
+      # WireMock trong `make run_mock` chạy bằng `java -jar mock/wiremock.jar` —
+      # image runner không có java (và không có make). Chạy ĐÚNG jar ấy, đúng
+      # tham số ấy, trong container JRE gắn vào NAMESPACE MẠNG của runner
+      # (`--network container:$(hostname)`): `localhost:8080` trong job chính là
+      # WireMock, không qua host, không va cổng với job khác trong ma trận.
+      #
+      # `docker cp` thay vì `-v`: runner là container, workspace nằm trong overlay
+      # của nó — bind mount `-v "$PWD:…"` trỏ vào đường dẫn TRÊN HOST, và ở đó
+      # trống (đo 05/09/2026: `ls /app` → rỗng). Chờ như Makefile.
+      - name: Khởi động WireMock
+        run: |
+          name="ci-wiremock-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${PHP}"
+          docker rm -f "$name" >/dev/null 2>&1 || true
+          cid=$(docker create --name "$name" --network "container:$(hostname)" -w /mock \
+            eclipse-temurin:11-jre java -jar wiremock.jar --verbose)
+          docker cp mock/. "$cid:/mock"
+          docker start "$cid" >/dev/null
+          echo "WIREMOCK=$name" >> "$GITHUB_ENV"
+          curl -s -o /dev/null -w "%{http_code}" localhost:8080/__admin/mappings --retry-connrefused --retry 60 --retry-max-time 60
+
+      # Dòng phpunit là NGUYÊN VĂN từ `make run_mock` (Makefile). Bản trùng với
+      # PHP của image (8.4) chạy thẳng; bản khác chạy trong `php:<ver>-cli`,
+      # cùng namespace mạng với runner để tới được WireMock ở localhost:8080.
+      # Workspace (kèm vendor/) đưa vào bằng `docker cp` — xem chú thích WireMock.
+      # `build/` lấy ngược ra cho bước Coveralls.
       - name: Run Tests
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: make run_mock
+        run: |
+          if [ "$PHP" = "$(php -r 'echo PHP_MAJOR_VERSION.".".PHP_MINOR_VERSION;')" ]; then
+            XDEBUG_MODE=coverage vendor/bin/phpunit --coverage-clover build/logs/clover.xml --testdox --debug -c phpunit.xml.dist
+          else
+            name="ci-php-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-${PHP}"
+            docker rm -f "$name" >/dev/null 2>&1 || true
+            cid=$(docker create --name "$name" --network "container:$(hostname)" -w /app \
+              -e XDEBUG_MODE=coverage "php:${PHP}-cli" \
+              vendor/bin/phpunit --coverage-clover build/logs/clover.xml --testdox --debug -c phpunit.xml.dist)
+            docker cp "$PWD/." "$cid:/app"
+            docker start -a "$cid" || true
+            rc=$(docker wait "$cid")
+            docker cp "$cid:/app/build/." build/ 2>/dev/null || true
+            docker rm -f "$cid" >/dev/null
+            exit "$rc"
+          fi
 
       - name: Code Climate before-build
         env:
@@ -26,10 +103,11 @@ jobs:
             chmod +x ./cc-test-reporter
             ./cc-test-reporter before-build
 
+      # Nguyên văn `make coverall_upload` (Makefile) — image runner không có make.
       - name: Upload coverage results to Coveralls
         env:
           COVERALLS_REPO_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: make coverall_upload
+        run: vendor/bin/php-coveralls --coverage_clover=build/logs/clover.xml -v
 
       - name: Upload to CoPilot
         run: bash <(curl -s https://copilot.blackducksoftware.com/ci/githubactions/scripts/upload)
@@ -38,3 +116,9 @@ jobs:
         env:
           CC_TEST_REPORTER_ID: fa3e49a5bc2592fd1397209f68833c40c47adb8de7940e460ffd07a852922660
         run: ./cc-test-reporter after-build --exit-code 0
+
+      # ZCleanupTest đã gọi `__admin/shutdown` nên WireMock thường tự tắt; bước
+      # này chỉ chắc chắn không để lại container khi test đỏ giữa chừng.
+      - name: Dọn WireMock
+        if: always()
+        run: docker rm -f "${WIREMOCK:-}" >/dev/null 2>&1 || true
