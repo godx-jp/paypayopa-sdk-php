@@ -26,9 +26,19 @@ class BoilerplateTest extends TestCase
      * @var Array
      */
     protected $config;
-    public function __construct()
+    /**
+     * Set up the shared API client for every test case.
+     *
+     * This used to be a constructor. PHPUnit 10 changed TestCase::__construct()
+     * to require the test name (`__construct(string $name)`), so the old
+     * `parent::__construct()` call raised ArgumentCountError before a single
+     * test could be built. Fixture set-up belongs in setUp() anyway.
+     *
+     * @return void
+     */
+    protected function setUp(): void
     {
-        parent::__construct();
+        parent::setUp();
         require('config.php');
         $this->client = new Client([
             /** @phpstan-ignore-next-line */

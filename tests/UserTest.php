@@ -10,9 +10,9 @@ final class UserTest extends BoilerplateTest
      */
     private $userAuthorizationId = "0ef0948e-314c-42e1-9312-03ce446fa5ef";
 
-    public function __construct()
+    protected function setUp(): void
     {
-        parent::__construct();
+        parent::setUp();
         require('config.php');
         /* @phpstan-ignore-next-line */
         $this->userAuthorizationId = $config['uaid'];

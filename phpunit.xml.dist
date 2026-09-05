@@ -1,13 +1,12 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" colors="true" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/9.3/phpunit.xsd">
-  <coverage processUncoveredFiles="true">
-    <include>
-      <directory suffix=".php">src</directory>
-    </include>
-    <report>
-      <php outputFile="./build/cov/clover.xml"/>
-    </report>
-  </coverage>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" colors="true" xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/10.5/phpunit.xsd" cacheDirectory=".phpunit.cache">
+  <!--
+    Khoi <coverage> da go 06/09/2026 cung voi ba buoc tieu thu no (Coveralls +
+    CodeClimate before/after) — xem chu thich trong .github/workflows/build-ci.yml.
+    Chi can khai <report> la PHPUnit doi driver coverage; thieu xdebug/pcov thi
+    no canh bao "No code coverage driver available" va THOAT 1 du 46/46 test
+    xanh. Bat lai thi phai them buoc khang dinh driver do-duoc truoc phpunit.
+  -->
   <logging/>
   <testsuites>
     <testsuite name="Cashback">
@@ -42,4 +41,9 @@
       <file> tests/ZCleanupTest.php</file>
     </testsuite>
   </testsuites>
+  <source>
+    <include>
+      <directory suffix=".php">src</directory>
+    </include>
+  </source>
 </phpunit>
