@@ -45,14 +45,25 @@ jobs:
     # `self-hosted` một mình là nhãn tự động, không phân biệt được máy nào.
     runs-on: [self-hosted, swarm-pool]
     strategy:
-      # CONTRACT L4 — BA LÀN. Ma trận rộng thuộc làn CHẬM, không gác merge:
-      #   · làn BẮT BUỘC (push / PR / chạy tay): chỉ 8.4 — đúng bản PHP của image
-      #     runner, chạy thẳng, không cần container phụ.
-      #   · làn CHẬM (`schedule`, 02:00 JST): 8.1 / 8.2 / 8.3 trong `php:<ver>-cli`.
-      # Đo lượt 33972065527: 4 leg × 76s ≈ 304 s/lượt. Còn 1 leg ở làn bắt buộc
-      # ⇒ **−228 s/lượt** cho mỗi push, mà vẫn giữ nguyên độ phủ 8.1–8.4 mỗi đêm.
+      # CONTRACT L4 — ma trận rộng không gác merge:
+      #   · làn BẮT BUỘC (push lên nhánh làm việc / PR): chỉ 8.4 — đúng bản PHP
+      #     của image runner, chạy thẳng, không cần container phụ.
+      #   · làn ĐẦY ĐỦ (push lên `master`, chạy tay, và `schedule` nếu nó chạy
+      #     được): 8.1 / 8.2 / 8.3 / 8.4, ba bản cũ trong `php:<ver>-cli`.
+      # Đo lượt 33972065527: 4 leg × 76s ≈ 304 s/lượt. Làn bắt buộc còn 1 leg
+      # ⇒ **−228 s/lượt** cho mỗi push nhánh và mỗi PR.
+      #
+      # ⚠️ VÌ SAO KHÔNG CHỈ DỰA VÀO `schedule`: kho này là **fork** của
+      # `paypay/paypayopa-sdk-php` (`repos/…/godx-jp/paypayopa-sdk-php` trả
+      # `"fork": true`). Cron thêm ngày 06/09/2026 và tới 17/09/2026 **KHÔNG có
+      # một lượt `schedule` nào** — `gh run list` chỉ thấy hai lượt, cả hai đều
+      # `workflow_dispatch`. Tức làn nightly chưa từng chạy, và độ phủ PHP
+      # 8.1–8.3 đã bằng KHÔNG suốt 11 ngày trong khi `composer.json` vẫn hứa
+      # `"php": "^8.1"` — đúng kiểu hỏng im lặng mà CONTRACT Nguyên tắc 3 cấm.
+      # Nên ba bản cũ được neo vào `push` lên `master`, thứ chắc chắn chạy.
+      # `schedule` giữ lại: vô hại, và tự có tác dụng nếu fork được tách ra.
       matrix:
-        php-version: ${{ fromJSON(github.event_name == 'schedule' && '["8.1","8.2","8.3"]' || '["8.4"]') }}
+        php-version: ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/master')) && '["8.1","8.2","8.3","8.4"]' || '["8.4"]') }}
       # Làn bắt buộc chỉ còn MỘT leg nên fail-fast không tiết kiệm khe hàng đợi
       # nào nữa; ở làn nightly ta muốn biết cả ba bản PHP cũ hỏng ra sao trong
       # một lượt, chứ không phải leg đầu đỏ là mất luôn thông tin hai leg kia.
