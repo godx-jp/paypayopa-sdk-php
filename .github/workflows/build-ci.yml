@@ -46,13 +46,28 @@ jobs:
     runs-on: [self-hosted, swarm-pool]
     strategy:
       # CONTRACT L4 — BA LÀN. Ma trận rộng thuộc làn CHẬM, không gác merge:
-      #   · làn BẮT BUỘC (push / PR / chạy tay): chỉ 8.4 — đúng bản PHP của image
+      #   · làn BẮT BUỘC (PR / chạy tay): chỉ 8.4 — đúng bản PHP của image
       #     runner, chạy thẳng, không cần container phụ.
-      #   · làn CHẬM (`schedule`, 02:00 JST): 8.1 / 8.2 / 8.3 trong `php:<ver>-cli`.
+      #   · làn CHẬM: 8.1 / 8.2 / 8.3 trong `php:<ver>-cli`.
       # Đo lượt 33972065527: 4 leg × 76s ≈ 304 s/lượt. Còn 1 leg ở làn bắt buộc
-      # ⇒ **−228 s/lượt** cho mỗi push, mà vẫn giữ nguyên độ phủ 8.1–8.4 mỗi đêm.
+      # ⇒ **−228 s/lượt** cho mỗi lượt PR, mà vẫn giữ độ phủ 8.1–8.4.
+      #
+      # 🔴 LÀN CHẬM KHÔNG ĐƯỢC TREO MỖI VÀO `schedule`. Repo này là FORK
+      # (`fork: true`, cha `paypay/paypayopa-sdk-php`) và GitHub **tắt workflow
+      # theo lịch trong fork** — lặng lẽ: API vẫn trả `state: active`, không hề
+      # có `disabled_fork` (đúng cái bẫy #3 ghi lại). Đo 2026-09-20:
+      # `gh run list --event schedule` = **0 lượt** trong 14 đêm kể từ khi cron
+      # được thêm (06/09). Tức bản trước của dòng này đã mua −228 s/lượt bằng
+      # cách đẩy 8.1–8.3 vào một làn KHÔNG BAO GIỜ CHẠY: độ phủ ba bản PHP ấy
+      # thực tế bằng 0, mà không ai được báo — đúng kiểu hỏng im lặng mà
+      # CONTRACT Nguyên tắc 3 cấm.
+      #
+      # Nên làn CHẬM treo vào `push` lên nhánh mặc định: sự kiện ấy CÓ chạy
+      # trong fork, và vì nó xảy ra SAU khi merge nên vẫn không gác merge (L4).
+      # `schedule` giữ nguyên bên cạnh, vô hại: nếu repo thôi là fork thì nó
+      # lại fire và đây vẫn là cùng một làn.
       matrix:
-        php-version: ${{ fromJSON(github.event_name == 'schedule' && '["8.1","8.2","8.3"]' || '["8.4"]') }}
+        php-version: ${{ fromJSON((github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/master')) && '["8.1","8.2","8.3"]' || '["8.4"]') }}
       # Làn bắt buộc chỉ còn MỘT leg nên fail-fast không tiết kiệm khe hàng đợi
       # nào nữa; ở làn nightly ta muốn biết cả ba bản PHP cũ hỏng ra sao trong
       # một lượt, chứ không phải leg đầu đỏ là mất luôn thông tin hai leg kia.
