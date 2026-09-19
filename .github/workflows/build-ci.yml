@@ -66,8 +66,23 @@ jobs:
       # trong fork, và vì nó xảy ra SAU khi merge nên vẫn không gác merge (L4).
       # `schedule` giữ nguyên bên cạnh, vô hại: nếu repo thôi là fork thì nó
       # lại fire và đây vẫn là cùng một làn.
+      #
+      # Cập nhật đo 2026-09-20: `--event schedule` nay có ĐÚNG MỘT lượt
+      # (35463481393, 19:09:58Z 19/09, xanh) — không còn 0. Nhưng một mẫu không
+      # đủ để rút lại câu trên, và hai chi tiết nói nên giữ nguyên belt-and-braces:
+      # cron là `0 17 * * *` mà lượt ấy fire lúc 19:09 UTC (trễ 2h09), và nó rơi
+      # đúng NGÀY repo nhận push (17:26/17:28). Lịch trong fork vẫn là thứ không
+      # hứa gì; `push` lên nhánh mặc định thì hứa.
+      #
+      # 8.4 CÓ trong làn chậm, không chỉ trong làn bắt buộc. Trước lượt sửa này
+      # làn chậm là `["8.1","8.2","8.3"]`, nên bản PHP CHÍNH của SDK không bao
+      # giờ được chạy trên nhánh mặc định: đo trên c9d3bd5 (push master,
+      # 35458185817) chỉ có build 8.1/8.2/8.3; 8.4 chỉ từng chạy trên SHA của
+      # NHÁNH (72ab41e) trước khi merge. Merge sinh SHA mới, nên cây thật sự nằm
+      # trên master chưa từng qua 8.4. Thêm một leg vào làn KHÔNG gác merge là
+      # cái giá rẻ nhất có thể cho lỗ hổng ấy.
       matrix:
-        php-version: ${{ fromJSON((github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/master')) && '["8.1","8.2","8.3"]' || '["8.4"]') }}
+        php-version: ${{ fromJSON((github.event_name == 'schedule' || (github.event_name == 'push' && github.ref == 'refs/heads/master')) && '["8.1","8.2","8.3","8.4"]' || '["8.4"]') }}
       # Làn bắt buộc chỉ còn MỘT leg nên fail-fast không tiết kiệm khe hàng đợi
       # nào nữa; ở làn nightly ta muốn biết cả ba bản PHP cũ hỏng ra sao trong
       # một lượt, chứ không phải leg đầu đỏ là mất luôn thông tin hai leg kia.
